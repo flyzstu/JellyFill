@@ -91,7 +91,9 @@ jobs:
 
       - name: Build plugin
         if: steps.check.outputs.skip != '1'
-        run: dotnet build JellyFill/JellyFill.csproj -c Release
+        env:
+          VERSION: ${{ steps.meta.outputs.version }}
+        run: dotnet build JellyFill/JellyFill.csproj -c Release -p:Version="${VERSION}"
 
       - name: Package zip
         if: steps.check.outputs.skip != '1'
@@ -99,11 +101,28 @@ jobs:
           VERSION: ${{ steps.meta.outputs.version }}
         run: |
           set -euo pipefail
-          PKG_DIR="JellyFill_${VERSION}"
-          mkdir -p "dist/${PKG_DIR}"
-          cp JellyFill/bin/Release/net9.0/JellyFill.dll "dist/${PKG_DIR}/"
-          cp meta.json thumb.png "dist/${PKG_DIR}/"
-          (cd dist && zip -qr "JellyFill_${VERSION}.zip" "${PKG_DIR}")
+          # 同步 meta.json 的版本与时间戳，保证与程序集版本一致（否则 Jellyfin 卸载会因版本不匹配失败）
+          python3 - <<'PY'
+          import datetime
+          import json
+          import os
+
+          path = "meta.json"
+          meta = json.load(open(path, encoding="utf-8"))
+          meta["version"] = os.environ["VERSION"]
+          meta["timestamp"] = datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.0000000Z")
+          with open(path, "w", encoding="utf-8") as f:
+              json.dump(meta, f, ensure_ascii=False, indent=2)
+              f.write("\n")
+          print(f"meta.json version -> {meta['version']}")
+          PY
+          PKG_DIR="dist/JellyFill_${VERSION}"
+          rm -rf "${PKG_DIR}"
+          mkdir -p "${PKG_DIR}"
+          cp JellyFill/bin/Release/net9.0/JellyFill.dll "${PKG_DIR}/"
+          cp meta.json thumb.png "${PKG_DIR}/"
+          # Jellyfin 会把 zip 内容直接解压进 plugins/{Name}_{Version}/，所以包内文件必须平铺（不能带外层目录）
+          (cd "${PKG_DIR}" && zip -qr "../JellyFill_${VERSION}.zip" JellyFill.dll meta.json thumb.png)
           unzip -l "dist/JellyFill_${VERSION}.zip"
           md5sum "dist/JellyFill_${VERSION}.zip"
 
