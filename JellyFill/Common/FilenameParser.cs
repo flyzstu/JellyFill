@@ -8,7 +8,7 @@ namespace JellyFill.Common;
 public static class FilenameParser
 {
     private static readonly Regex CleanPattern = new(
-        @"(?i)([-_]C\b|[-_]UC\b|[-_]4K\b|[-_]HD\b|[-_]FHD\b|中文字幕|無碼流出|破解版|\b1080p\b|\b720p\b|\b2160p\b)",
+        @"(?i)(^.*?[@]|[-_]C\b|[-_]UC\b|[-_]4K\b|[-_]HD\b|[-_]FHD\b|中文字幕|無碼流出|破解版|\b1080p\b|\b720p\b|\b2160p\b|\[(?:[a-z0-9\._-]+|\d+堂|草榴|sexinsex).*?\]|【.*?】|\b[a-z0-9_-]+\.(?:com|net|org|xyz|cc|tv|me|vip|club)\b)",
         RegexOptions.Compiled);
 
     private static readonly Regex[] ExtractPatterns = new[]
@@ -19,7 +19,7 @@ public static class FilenameParser
         // 2. Uncensored date-like ID: 110121-001 or 010122_123
         new Regex(@"\b(\d{6})[-_](\d{2,4})\b", RegexOptions.Compiled),
 
-        // 3. Standard censored releases: SSIS-365, SNIS-632, IPX-123, EBWH-357
+        // 3. Standard censored releases: SSIS-365, SNIS-632, IPX-123, EBWH-357, AVSA-458
         new Regex(@"(?i)\b([a-z]{2,6})[-_]?(\d{2,5})\b", RegexOptions.Compiled),
 
         // 4. Special alphanumeric: T28-123, 1pondo-123456_001
@@ -27,18 +27,15 @@ public static class FilenameParser
     };
 
     /// <summary>
-    /// Extract clean 番号 from filename.
+    /// Try extracting canonical 番号. Returns null if no recognized pattern matches.
     /// </summary>
-    /// <param name="raw">Raw file name or title.</param>
-    /// <returns>Normalized番号 or empty string.</returns>
-    public static string Parse(string? raw)
+    public static string? ExtractCanonicalNumber(string? raw)
     {
         if (string.IsNullOrWhiteSpace(raw))
         {
-            return string.Empty;
+            return null;
         }
 
-        // Clean common noise
         string clean = CleanPattern.Replace(raw, string.Empty);
 
         foreach (var regex in ExtractPatterns)
@@ -52,6 +49,16 @@ public static class FilenameParser
             }
         }
 
-        return raw.Trim();
+        return null;
+    }
+
+    /// <summary>
+    /// Extract clean 番号 from filename, falling back to raw trimmed string.
+    /// </summary>
+    /// <param name="raw">Raw file name or title.</param>
+    /// <returns>Normalized 番号 or raw trimmed string.</returns>
+    public static string Parse(string? raw)
+    {
+        return ExtractCanonicalNumber(raw) ?? raw?.Trim() ?? string.Empty;
     }
 }

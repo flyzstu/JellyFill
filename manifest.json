@@ -9,7 +9,7 @@
     "imageUrl": "https://coding.fly97.fun:8443/fly97/jellyfill-plugin/raw/branch/main/thumb.png",
     "versions": [
       {
-        "checksum": "f0044719f27cd72b96f582ec4292bf2f",
+        "checksum": "f4feb694b62710811dcfe5e2026d70b5",
         "changelog": "Auto Released by Actions",
         "targetAbi": "10.11.0.0",
         "sourceUrl": "https://coding.fly97.fun:8443/fly97/jellyfill-plugin/releases/download/v1.0.0.0/JellyFill_1.0.0.0.zip",

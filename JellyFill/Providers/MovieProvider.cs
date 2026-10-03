@@ -47,16 +47,32 @@ public class MovieProvider : IRemoteMetadataProvider<Movie, MovieInfo>, IHasOrde
         var results = new List<RemoteSearchResult>();
 
         string rawName = Path.GetFileNameWithoutExtension(string.IsNullOrEmpty(info.Path) ? info.Name : info.Path);
-        string number = FilenameParser.Parse(rawName);
+        string? canonicalNumber = FilenameParser.ExtractCanonicalNumber(rawName);
+
+        // Fallback: If filename did not yield a canonical 番号, inspect parent directory name
+        if (string.IsNullOrEmpty(canonicalNumber) && !string.IsNullOrEmpty(info.Path))
+        {
+            string? parentDir = Path.GetFileName(Path.GetDirectoryName(info.Path));
+            if (!string.IsNullOrEmpty(parentDir))
+            {
+                canonicalNumber = FilenameParser.ExtractCanonicalNumber(parentDir);
+                if (!string.IsNullOrEmpty(canonicalNumber))
+                {
+                    PluginLogStore.Add(PluginLogLevel.Info, "MovieProvider", $"[搜索] 从父文件夹识别到番号 [{canonicalNumber}] (路径: '{info.Path}')");
+                }
+            }
+        }
+
+        string number = canonicalNumber ?? FilenameParser.Parse(rawName);
 
         if (string.IsNullOrEmpty(number))
         {
             _logger.LogDebug("[JellyFill] Could not parse number from filename: {RawName}", rawName);
-            PluginLogStore.Add(PluginLogLevel.Warning, "MovieProvider", $"[搜索] 无法从文件名识别有效番号: '{rawName}'");
+            PluginLogStore.Add(PluginLogLevel.Warning, "MovieProvider", $"[搜索] 无法识别有效番号: '{rawName}'");
             return results;
         }
 
-        PluginLogStore.Add(PluginLogLevel.Info, "MovieProvider", $"[搜索] 识别到番号 [{number}] (文件名: '{rawName}')");
+        PluginLogStore.Add(PluginLogLevel.Info, "MovieProvider", $"[搜索] 识别到番号 [{number}] (来源: '{rawName}')");
 
         string serverUrl = Plugin.Instance?.Configuration.ServerUrl.TrimEnd('/') ?? "http://127.0.0.1:8089";
         string url = $"{serverUrl}/v1/movies/search?q={Uri.EscapeDataString(number)}";
