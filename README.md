@@ -44,7 +44,7 @@ JellyFill/
 ├── meta.json                         # Jellyfin 插件描述清单
 ├── build.yaml                        # Jellyfin 官方构建清单
 └── dist/
-    └── JellyFill_1.1.0.0.zip         # 打包分发包
+    └── JellyFill_1.1.0.1.zip         # 打包分发包
 ```
 
 ---
@@ -89,9 +89,9 @@ dotnet build -c Release
 1. 打开 Jellyfin 容器或主机的插件目录（通常挂载在 `/config/plugins`）；
 2. 创建版本目录并复制插件文件：
    ```bash
-   mkdir -p /config/plugins/JellyFill_1.1.0.0
-   cp JellyFill/bin/Release/net9.0/JellyFill.dll /config/plugins/JellyFill_1.1.0.0/
-   cp meta.json /config/plugins/JellyFill_1.1.0.0/
+   mkdir -p /config/plugins/JellyFill_1.1.0.1
+   cp JellyFill/bin/Release/net9.0/JellyFill.dll /config/plugins/JellyFill_1.1.0.1/
+   cp meta.json /config/plugins/JellyFill_1.1.0.1/
    ```
 3. 重启 Jellyfin 容器使插件生效：
    ```bash
