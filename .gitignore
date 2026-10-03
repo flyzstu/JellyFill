@@ -3,3 +3,8 @@ obj/
 .vs/
 .idea/
 artifacts
+
+lib/
+dist/
+bin/
+obj/

@@ -1,0 +1,21 @@
+[
+  {
+    "guid": "a81d3e52-7b19-482c-b5f7-3e198642a8b3",
+    "name": "JellyFill",
+    "description": "JellyFill Plugin for Jellyfin.",
+    "overview": "JellyFill 高性能影片刮削插件，支持智能 2:3 纵向海报截取、演职员入库、控制台实时日志监控与在线调试。",
+    "owner": "fly97",
+    "category": "Metadata",
+    "imageUrl": "https://coding.fly97.fun:8443/fly97/jellyfill-plugin/raw/branch/main/thumb.png",
+    "versions": [
+      {
+        "checksum": "f0044719f27cd72b96f582ec4292bf2f",
+        "changelog": "Initial release: JAV321 scraper integration, smart 2:3 vertical poster crop, live log console and debugger.",
+        "targetAbi": "10.11.0.0",
+        "sourceUrl": "https://coding.fly97.fun:8443/fly97/jellyfill-plugin/releases/download/v1.0.0.0/JellyFill_1.0.0.0.zip",
+        "timestamp": "2026-10-03T14:00:00Z",
+        "version": "1.0.0.0"
+      }
+    ]
+  }
+]

@@ -1,0 +1,587 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="utf-8">
+    <title>JellyFill 配置与日志监控</title>
+    <style>
+        .jellyfill-tabs {
+            display: flex;
+            border-bottom: 2px solid #2a2b36;
+            margin-bottom: 1.5em;
+            gap: 0.5em;
+        }
+        .jellyfill-tab-btn {
+            background: none;
+            border: none;
+            outline: none;
+            color: #9aa0a6;
+            font-size: 1.05em;
+            font-weight: 500;
+            padding: 0.75em 1.25em;
+            cursor: pointer;
+            border-radius: 8px 8px 0 0;
+            transition: all 0.2s ease;
+            display: flex;
+            align-items: center;
+            gap: 0.5em;
+        }
+        .jellyfill-tab-btn:hover {
+            color: #ffffff;
+            background: rgba(255, 255, 255, 0.05);
+        }
+        .jellyfill-tab-btn.active {
+            color: #00a4dc;
+            border-bottom: 3px solid #00a4dc;
+            background: rgba(0, 164, 220, 0.1);
+        }
+        .jellyfill-tab-content {
+            display: none;
+        }
+        .jellyfill-tab-content.active {
+            display: block;
+        }
+
+        /* 终端日志面板样式 */
+        .log-toolbar {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 0.75em;
+            margin-bottom: 1em;
+            background: rgba(255, 255, 255, 0.03);
+            padding: 0.75em 1em;
+            border-radius: 8px;
+            border: 1px solid rgba(255, 255, 255, 0.08);
+        }
+        .log-filter-group {
+            display: flex;
+            align-items: center;
+            gap: 0.5em;
+        }
+        .log-container {
+            background-color: #111216;
+            border: 1px solid #252830;
+            border-radius: 8px;
+            padding: 1em;
+            height: 480px;
+            overflow-y: auto;
+            font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+            font-size: 0.9em;
+            line-height: 1.6;
+            box-shadow: inset 0 2px 8px rgba(0, 0, 0, 0.5);
+        }
+        .log-item {
+            padding: 0.35em 0.5em;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+            display: flex;
+            align-items: flex-start;
+            gap: 0.75em;
+            word-break: break-word;
+        }
+        .log-item:hover {
+            background-color: rgba(255, 255, 255, 0.03);
+        }
+        .log-time {
+            color: #6c757d;
+            flex-shrink: 0;
+            font-size: 0.85em;
+        }
+        .log-level {
+            display: inline-block;
+            padding: 0.1em 0.45em;
+            border-radius: 4px;
+            font-size: 0.75em;
+            font-weight: 700;
+            text-transform: uppercase;
+            flex-shrink: 0;
+            text-align: center;
+            min-width: 55px;
+        }
+        .log-level-debug { background: #343a40; color: #ced4da; }
+        .log-level-info { background: #0c4a6e; color: #38bdf8; }
+        .log-level-success { background: #064e3b; color: #34d399; }
+        .log-level-warning { background: #713f12; color: #fde047; }
+        .log-level-error { background: #7f1d1d; color: #f87171; }
+        .log-source {
+            color: #c084fc;
+            font-weight: 600;
+            flex-shrink: 0;
+        }
+        .log-msg {
+            color: #e2e8f0;
+            flex-grow: 1;
+        }
+
+        /* 调试器卡片样式 */
+        .debug-card {
+            background: rgba(255, 255, 255, 0.03);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            border-radius: 8px;
+            padding: 1.25em;
+            margin-bottom: 1.5em;
+        }
+        .debug-result-grid {
+            display: grid;
+            grid-template-columns: 180px 1fr;
+            gap: 1.5em;
+            margin-top: 1em;
+            background: #181920;
+            border: 1px solid #2a2c35;
+            border-radius: 8px;
+            padding: 1.25em;
+        }
+        .debug-poster-preview {
+            width: 100%;
+            height: 270px;
+            background: #252830;
+            border-radius: 6px;
+            object-fit: cover;
+            border: 1px solid #333;
+        }
+        .debug-tag {
+            display: inline-block;
+            background: rgba(0, 164, 220, 0.15);
+            color: #38bdf8;
+            border: 1px solid rgba(0, 164, 220, 0.3);
+            padding: 0.15em 0.6em;
+            border-radius: 4px;
+            font-size: 0.85em;
+            margin: 0.2em;
+        }
+    </style>
+</head>
+<body>
+    <div id="JellyFillConfigPage" data-role="page" class="page type-interior pluginConfigurationPage" data-require="emby-input,emby-button,emby-select,emby-checkbox">
+        <div data-role="content">
+            <div class="content-primary">
+                <!-- 导航选项卡 -->
+                <div class="jellyfill-tabs">
+                    <button type="button" class="jellyfill-tab-btn active" data-tab="tab-settings">
+                        <span>⚙️ 基础设置</span>
+                    </button>
+                    <button type="button" class="jellyfill-tab-btn" data-tab="tab-debug">
+                        <span>🧪 刮削调试</span>
+                    </button>
+                    <button type="button" class="jellyfill-tab-btn" data-tab="tab-logs">
+                        <span>📜 运行日志</span>
+                    </button>
+                </div>
+
+                <!-- Tab 1: 基础设置 -->
+                <div id="tab-settings" class="jellyfill-tab-content active">
+                    <form id="JellyFillConfigForm">
+                        <div class="inputContainer">
+                            <label class="inputLabel inputLabelUnfocused" for="ServerUrl">JellyFill Server 地址</label>
+                            <input id="ServerUrl" name="ServerUrl" type="text" is="emby-input" required />
+                            <div class="fieldDescription">后端 JellyFill-Server 服务地址，例如: http://127.0.0.1:8089</div>
+                        </div>
+
+                        <div class="inputContainer">
+                            <label class="inputLabel inputLabelUnfocused" for="ApiToken">API Token (可选)</label>
+                            <input id="ApiToken" name="ApiToken" type="password" is="emby-input" />
+                            <div class="fieldDescription">如果服务端配置了 JELLYFILL_TOKEN 鉴权密钥，请在此填写</div>
+                        </div>
+
+                        <div class="selectContainer">
+                            <label class="selectLabel" for="DefaultProvider">默认数据源</label>
+                            <select is="emby-select" id="DefaultProvider" name="DefaultProvider" class="emby-select-withcolor emby-select">
+                                <option value="JAV321">JAV321</option>
+                            </select>
+                            <div class="fieldDescription">优先使用的刮削数据源</div>
+                        </div>
+
+                        <div class="checkboxContainer checkboxContainer-withDescription">
+                            <label class="emby-checkbox-label">
+                                <input id="EnablePosterCrop" name="EnablePosterCrop" type="checkbox" is="emby-checkbox" />
+                                <span>启用智能 2:3 纵向海报截取</span>
+                            </label>
+                            <div class="fieldDescription">开启后，服务端将自动将横版全景封套右切为适合 Jellyfin 显示的 2:3 竖版海报</div>
+                        </div>
+
+                        <div class="checkboxContainer checkboxContainer-withDescription">
+                            <label class="emby-checkbox-label">
+                                <input id="EnableActors" name="EnableActors" type="checkbox" is="emby-checkbox" />
+                                <span>刮削女优 / 演员列表</span>
+                            </label>
+                            <div class="fieldDescription">开启后将自动关联并建立演职员索引</div>
+                        </div>
+
+                        <div style="margin-top: 1.5em; display: flex; gap: 1em;">
+                            <button is="emby-button" type="submit" class="raised button-submit block emby-button">
+                                <span>保存配置</span>
+                            </button>
+                            <button is="emby-button" type="button" id="btnTestConn" class="raised block emby-button">
+                                <span>测试后端连接</span>
+                            </button>
+                        </div>
+                    </form>
+                </div>
+
+                <!-- Tab 2: 刮削调试器 -->
+                <div id="tab-debug" class="jellyfill-tab-content">
+                    <div class="debug-card">
+                        <h3 style="margin-top: 0;">刮削与番号提取测试</h3>
+                        <p style="color: #9aa0a6; font-size: 0.9em;">输入本地影片文件名或纯番号，测试正则清洗、番号提取及后端元数据搜索是否正常工作。</p>
+                        
+                        <div class="inputContainer">
+                            <label class="inputLabel inputLabelUnfocused" for="debugInput">待测文件名或番号</label>
+                            <input id="debugInput" type="text" is="emby-input" placeholder="例如: [FHD] EBWH-357.mp4 或 SSIS-387-C" />
+                        </div>
+
+                        <div style="display: flex; gap: 1em; margin-top: 1em;">
+                            <button is="emby-button" type="button" id="btnDebugParse" class="raised emby-button">
+                                <span>① 提取番号</span>
+                            </button>
+                            <button is="emby-button" type="button" id="btnDebugScrape" class="raised button-submit emby-button">
+                                <span>② 在线抓取测试</span>
+                            </button>
+                        </div>
+                    </div>
+
+                    <div id="debugResultContainer" style="display: none;">
+                        <div class="debug-result-grid">
+                            <div>
+                                <img id="debugPoster" class="debug-poster-preview" alt="Poster Preview" src="" />
+                                <div style="font-size: 0.8em; color: #9aa0a6; text-align: center; margin-top: 0.5em;">2:3 纵向海报实时预览</div>
+                            </div>
+                            <div>
+                                <div style="display: flex; align-items: center; gap: 0.5em; margin-bottom: 0.5em;">
+                                    <span id="debugBadgeNumber" class="debug-tag" style="font-size: 1.1em; font-weight: bold; background: #00a4dc; color: #fff;"></span>
+                                    <span id="debugBadgeProvider" class="debug-tag"></span>
+                                    <span id="debugBadgeDate" class="debug-tag" style="background: rgba(255,255,255,0.05); color: #aaa;"></span>
+                                </div>
+                                <h2 id="debugTitle" style="margin: 0.2em 0 0.8em 0; font-size: 1.3em;"></h2>
+                                <div style="margin-bottom: 0.75em;">
+                                    <strong style="color: #aaa; font-size: 0.9em;">制作商 / 厂牌: </strong>
+                                    <span id="debugMaker" style="color: #fff;"></span>
+                                </div>
+                                <div style="margin-bottom: 0.75em;">
+                                    <strong style="color: #aaa; font-size: 0.9em;">演职员: </strong>
+                                    <div id="debugActors" style="display: inline;"></div>
+                                </div>
+                                <div style="margin-top: 1em;">
+                                    <details>
+                                        <summary style="cursor: pointer; color: #00a4dc; font-size: 0.9em;">查看服务端原始 JSON 响应</summary>
+                                        <pre id="debugRawJson" style="background: #111; padding: 1em; border-radius: 6px; overflow-x: auto; font-size: 0.8em; color: #a5d6a7; margin-top: 0.5em;"></pre>
+                                    </details>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Tab 3: 实时日志 -->
+                <div id="tab-logs" class="jellyfill-tab-content">
+                    <div class="log-toolbar">
+                        <div class="log-filter-group">
+                            <label style="color: #9aa0a6; font-size: 0.9em;">日志级别:</label>
+                            <select id="logLevelFilter" is="emby-select" style="padding: 0.3em 0.8em; border-radius: 4px; background: #252830; color: #fff; border: 1px solid #444;">
+                                <option value="ALL">全部 (ALL)</option>
+                                <option value="Info">信息 (INFO)</option>
+                                <option value="Success">成功 (SUCCESS)</option>
+                                <option value="Warning">警告 (WARN)</option>
+                                <option value="Error">错误 (ERROR)</option>
+                                <option value="Debug">调试 (DEBUG)</option>
+                            </select>
+                            <span id="logCountLabel" style="color: #9aa0a6; font-size: 0.85em; margin-left: 0.5em;">共 0 条</span>
+                        </div>
+
+                        <div style="display: flex; align-items: center; gap: 0.75em;">
+                            <label class="emby-checkbox-label" style="margin: 0; font-size: 0.9em; display: flex; align-items: center; gap: 0.4em; cursor: pointer;">
+                                <input id="chkAutoRefresh" type="checkbox" is="emby-checkbox" checked />
+                                <span>自动刷新 (3秒)</span>
+                            </label>
+                            <button is="emby-button" type="button" id="btnRefreshLogs" class="raised emby-button" style="padding: 0.4em 1em;">
+                                <span>🔄 刷新</span>
+                            </button>
+                            <button is="emby-button" type="button" id="btnClearLogs" class="raised emby-button" style="padding: 0.4em 1em; background: rgba(239, 68, 68, 0.2); color: #f87171;">
+                                <span>🗑️ 清空日志</span>
+                            </button>
+                        </div>
+                    </div>
+
+                    <div id="logConsole" class="log-container">
+                        <div style="color: #6c757d; text-align: center; padding: 2em;">正在加载日志数据...</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <script type="text/javascript">
+            var JellyFillConfig = {
+                pluginUniqueId: 'a81d3e52-7b19-482c-b5f7-3e198642a8b3',
+                cachedLogs: [],
+                autoRefreshTimer: null
+            };
+
+            // 1. 选项卡切换交互
+            function initTabs() {
+                var tabBtns = document.querySelectorAll('.jellyfill-tab-btn');
+                tabBtns.forEach(function(btn) {
+                    btn.addEventListener('click', function() {
+                        tabBtns.forEach(function(b) { b.classList.remove('active'); });
+                        document.querySelectorAll('.jellyfill-tab-content').forEach(function(c) { c.classList.remove('active'); });
+
+                        btn.classList.add('active');
+                        var targetId = btn.getAttribute('data-tab');
+                        var targetContent = document.getElementById(targetId);
+                        if (targetContent) {
+                            targetContent.classList.add('active');
+                        }
+
+                        if (targetId === 'tab-logs') {
+                            fetchLogs();
+                        }
+                    });
+                });
+            }
+
+            // 2. 日志渲染与过滤
+            function renderLogs() {
+                var filter = document.getElementById('logLevelFilter').value;
+                var consoleElem = document.getElementById('logConsole');
+                var countElem = document.getElementById('logCountLabel');
+
+                var logs = JellyFillConfig.cachedLogs || [];
+                if (filter !== 'ALL') {
+                    logs = logs.filter(function(x) {
+                        return (x.level || '').toString().toLowerCase() === filter.toLowerCase();
+                    });
+                }
+
+                countElem.textContent = '共 ' + logs.length + ' 条';
+
+                if (logs.length === 0) {
+                    consoleElem.innerHTML = '<div style="color: #6c757d; text-align: center; padding: 2em;">暂无日志条目</div>';
+                    return;
+                }
+
+                var html = '';
+                for (var i = 0; i < logs.length; i++) {
+                    var item = logs[i];
+                    var timeStr = item.timestamp ? new Date(item.timestamp).toLocaleTimeString() : '';
+                    var lvl = (item.level !== undefined && item.level !== null) ? item.level : 'Info';
+                    
+                    // Enum mapping: 0=Debug, 1=Info, 2=Success, 3=Warning, 4=Error
+                    var lvlName = 'INFO';
+                    var lvlClass = 'log-level-info';
+                    if (lvl === 0 || lvl === 'Debug') { lvlName = 'DEBUG'; lvlClass = 'log-level-debug'; }
+                    else if (lvl === 1 || lvl === 'Info') { lvlName = 'INFO'; lvlClass = 'log-level-info'; }
+                    else if (lvl === 2 || lvl === 'Success') { lvlName = 'SUCCESS'; lvlClass = 'log-level-success'; }
+                    else if (lvl === 3 || lvl === 'Warning') { lvlName = 'WARN'; lvlClass = 'log-level-warning'; }
+                    else if (lvl === 4 || lvl === 'Error') { lvlName = 'ERROR'; lvlClass = 'log-level-error'; }
+
+                    var safeMsg = (item.message || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+                    var source = (item.source || 'JellyFill').replace(/&/g, '&amp;');
+
+                    html += '<div class="log-item">' +
+                        '<span class="log-time">' + timeStr + '</span>' +
+                        '<span class="log-level ' + lvlClass + '">' + lvlName + '</span>' +
+                        '<span class="log-source">[' + source + ']</span>' +
+                        '<span class="log-msg">' + safeMsg + '</span>' +
+                        '</div>';
+                }
+
+                consoleElem.innerHTML = html;
+            }
+
+            // 3. 拉取日志
+            function fetchLogs() {
+                var url = ApiClient.getUrl('JellyFill/Logs');
+                ApiClient.fetch({
+                    url: url,
+                    type: 'GET'
+                }).then(function(res) {
+                    return res.json();
+                }).then(function(data) {
+                    JellyFillConfig.cachedLogs = data || [];
+                    renderLogs();
+                }).catch(function(err) {
+                    console.error('Failed to fetch JellyFill logs:', err);
+                });
+            }
+
+            // 4. 清空日志
+            function clearLogs() {
+                var url = ApiClient.getUrl('JellyFill/Logs/Clear');
+                ApiClient.fetch({
+                    url: url,
+                    type: 'POST'
+                }).then(function() {
+                    JellyFillConfig.cachedLogs = [];
+                    renderLogs();
+                }).catch(function(err) {
+                    Dashboard.alert('清空日志失败: ' + err.message);
+                });
+            }
+
+            // 5. 调试：提取番号
+            function debugParse() {
+                var raw = document.getElementById('debugInput').value.trim();
+                if (!raw) {
+                    Dashboard.alert('请输入文件名或番号');
+                    return;
+                }
+
+                var url = ApiClient.getUrl('JellyFill/Debug/Parse');
+                ApiClient.fetch({
+                    url: url,
+                    type: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    data: JSON.stringify({ Filename: raw })
+                }).then(function(res) {
+                    return res.json();
+                }).then(function(data) {
+                    if (data && data.number) {
+                        Dashboard.alert('提取成功！\n原始输入: ' + data.filename + '\n提取番号: ' + data.number);
+                        document.getElementById('debugInput').value = data.number;
+                    } else {
+                        Dashboard.alert('未能从该输入提取到有效番号。');
+                    }
+                }).catch(function(err) {
+                    Dashboard.alert('解析接口请求失败: ' + err.message);
+                });
+            }
+
+            // 6. 调试：在线抓取测试
+            function debugScrape() {
+                var raw = document.getElementById('debugInput').value.trim();
+                if (!raw) {
+                    Dashboard.alert('请输入待测番号');
+                    return;
+                }
+
+                Dashboard.showLoadingMsg();
+                var url = ApiClient.getUrl('JellyFill/Debug/Search') + '?q=' + encodeURIComponent(raw);
+                ApiClient.fetch({
+                    url: url,
+                    type: 'GET'
+                }).then(function(res) {
+                    return res.json();
+                }).then(function(resData) {
+                    Dashboard.hideLoadingMsg();
+                    var container = document.getElementById('debugResultContainer');
+                    if (resData && resData.results && resData.results.length > 0) {
+                        var first = resData.results[0];
+                        container.style.display = 'block';
+
+                        document.getElementById('debugBadgeNumber').textContent = resData.query || first.id;
+                        document.getElementById('debugBadgeProvider').textContent = first.provider || 'JAV321';
+                        document.getElementById('debugBadgeDate').textContent = first.release_date || '未知日期';
+                        document.getElementById('debugTitle').textContent = first.title || '无标题';
+                        document.getElementById('debugMaker').textContent = first.maker || '未知';
+
+                        var actorsElem = document.getElementById('debugActors');
+                        actorsElem.innerHTML = '';
+                        if (first.actors && first.actors.length > 0) {
+                            first.actors.forEach(function(a) {
+                                var span = document.createElement('span');
+                                span.className = 'debug-tag';
+                                span.textContent = a;
+                                actorsElem.appendChild(span);
+                            });
+                        } else {
+                            actorsElem.textContent = '暂无演员信息';
+                        }
+
+                        // Poster preview directly from server 2:3 crop
+                        var serverUrl = document.getElementById('ServerUrl').value.replace(/\/+$/, '');
+                        var posterUrl = serverUrl + '/v1/images/primary/' + first.provider + '/' + first.id;
+                        document.getElementById('debugPoster').src = posterUrl;
+
+                        document.getElementById('debugRawJson').textContent = JSON.stringify(resData, null, 2);
+                    } else {
+                        container.style.display = 'none';
+                        Dashboard.alert('未检索到任何匹配影片。');
+                    }
+                }).catch(function(err) {
+                    Dashboard.hideLoadingMsg();
+                    Dashboard.alert('调试搜索失败: ' + err.message);
+                });
+            }
+
+            // 7. 定时刷新管理
+            function setupAutoRefresh() {
+                if (JellyFillConfig.autoRefreshTimer) {
+                    clearInterval(JellyFillConfig.autoRefreshTimer);
+                    JellyFillConfig.autoRefreshTimer = null;
+                }
+
+                var isAuto = document.getElementById('chkAutoRefresh').checked;
+                if (isAuto) {
+                    JellyFillConfig.autoRefreshTimer = setInterval(function() {
+                        var logsTab = document.getElementById('tab-logs');
+                        if (logsTab && logsTab.classList.contains('active')) {
+                            fetchLogs();
+                        }
+                    }, 3000);
+                }
+            }
+
+            // 初始化事件绑定
+            document.querySelector('#JellyFillConfigPage')
+                .addEventListener('pageshow', function() {
+                    initTabs();
+
+                    Dashboard.showLoadingMsg();
+                    ApiClient.getPluginConfiguration(JellyFillConfig.pluginUniqueId).then(function (config) {
+                        document.querySelector('#ServerUrl').value = config.ServerUrl || 'http://127.0.0.1:8089';
+                        document.querySelector('#ApiToken').value = config.ApiToken || '';
+                        document.querySelector('#DefaultProvider').value = config.DefaultProvider || 'JAV321';
+                        document.querySelector('#EnablePosterCrop').checked = config.EnablePosterCrop !== false;
+                        document.querySelector('#EnableActors').checked = config.EnableActors !== false;
+                        Dashboard.hideLoadingMsg();
+                    });
+
+                    fetchLogs();
+                    setupAutoRefresh();
+                });
+
+            document.getElementById('btnTestConn').addEventListener('click', function() {
+                var serverUrl = document.getElementById('ServerUrl').value.replace(/\/+$/, '');
+                Dashboard.showLoadingMsg();
+                fetch(serverUrl + '/', { method: 'GET' })
+                    .then(function(res) { return res.json(); })
+                    .then(function(data) {
+                        Dashboard.hideLoadingMsg();
+                        if (data && data.data && data.data.app) {
+                            Dashboard.alert('后端连接成功！\n服务: ' + data.data.app + '\n版本: ' + data.data.version);
+                        } else {
+                            Dashboard.alert('收到响应，但服务端数据异常: ' + JSON.stringify(data));
+                        }
+                    })
+                    .catch(function(err) {
+                        Dashboard.hideLoadingMsg();
+                        Dashboard.alert('连接失败: ' + err.message);
+                    });
+            });
+
+            document.getElementById('btnRefreshLogs').addEventListener('click', fetchLogs);
+            document.getElementById('btnClearLogs').addEventListener('click', clearLogs);
+            document.getElementById('logLevelFilter').addEventListener('change', renderLogs);
+            document.getElementById('chkAutoRefresh').addEventListener('change', setupAutoRefresh);
+            document.getElementById('btnDebugParse').addEventListener('click', debugParse);
+            document.getElementById('btnDebugScrape').addEventListener('click', debugScrape);
+
+            document.getElementById('JellyFillConfigForm')
+                .addEventListener('submit', function(e) {
+                    Dashboard.showLoadingMsg();
+                    ApiClient.getPluginConfiguration(JellyFillConfig.pluginUniqueId).then(function (config) {
+                        config.ServerUrl = document.getElementById('ServerUrl').value.replace(/\/+$/, '');
+                        config.ApiToken = document.getElementById('ApiToken').value;
+                        config.DefaultProvider = document.getElementById('DefaultProvider').value;
+                        config.EnablePosterCrop = document.getElementById('EnablePosterCrop').checked;
+                        config.EnableActors = document.getElementById('EnableActors').checked;
+
+                        ApiClient.updatePluginConfiguration(JellyFillConfig.pluginUniqueId, config).then(function (result) {
+                            Dashboard.processPluginConfigurationUpdateResult(result);
+                        });
+                    });
+                    e.preventDefault();
+                    return false;
+                });
+        </script>
+    </div>
+</body>
+</html>
