@@ -1,7 +1,7 @@
 ---
 name: "JellyFill"
 guid: "a81d3e52-7b19-482c-b5f7-3e198642a8b3"
-version: "1.0.0.0"
+version: "1.1.0.0"
 targetAbi: "10.11.0.0"
 framework: "net9.0"
 overview: "High-performance metadata and image scraper powered by JellyFill-Server."
@@ -13,4 +13,5 @@ owner: "flyzstu"
 artifacts:
 - "JellyFill.dll"
 changelog: >
-  Initial release with JAV321 support, 2:3 poster cropping, and JellyFill-Server integration.
+  新增横版缩略图(Thumb/landscape)图源与导演信息入库，
+  配合新版 JellyFill-Server 的 JavBus 双源与元数据融合能力，NFO 信息更完整。
