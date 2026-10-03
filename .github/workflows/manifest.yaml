@@ -1,0 +1,182 @@
+name: '📦 Update Plugin Manifest (dist branch)'
+
+# 发布新版本（Release published）后，自动把该版本写入 dist 分支的 manifest.json。
+# dist 分支只存放 manifest.json 一个文件，Jellyfin 插件仓库地址（客户端填这个）：
+#   {GITEA}/fly97/jellyfill-plugin/raw/branch/dist/manifest.json
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      version:
+        description: '要写入 manifest 的版本号（如 1.0.0.1，缺省取 build.yaml 的 version）'
+        required: false
+        type: string
+
+permissions:
+  contents: write
+
+concurrency:
+  group: update-manifest-dist
+  cancel-in-progress: false
+
+jobs:
+  manifest:
+    name: Publish manifest.json to dist
+    runs-on: ubuntu-latest
+    # 预发布（Prerelease）不写入插件仓库
+    if: ${{ github.event_name != 'release' || !github.event.release.prerelease }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Resolve version, target ABI and artifact URL
+        id: meta
+        env:
+          RELEASE_TAG: ${{ github.event.release.tag_name }}
+          INPUT_VERSION: ${{ inputs.version }}
+        run: |
+          set -euo pipefail
+          if [ -n "${RELEASE_TAG}" ]; then
+            TAG="${RELEASE_TAG}"
+          elif [ -n "${INPUT_VERSION}" ]; then
+            TAG="v${INPUT_VERSION}"
+          else
+            TAG="v$(grep -E '^version:' build.yaml | head -n 1 | sed -E 's/.*"([^"]+)".*/\1/')"
+          fi
+          VERSION="${TAG#v}"
+          TAG="v${VERSION}"
+          TARGET_ABI="$(grep -E '^targetAbi:' build.yaml | head -n 1 | sed -E 's/.*"([^"]+)".*/\1/')"
+          ZIP_NAME="JellyFill_${VERSION}.zip"
+          ASSET_URL="${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/releases/download/${TAG}/${ZIP_NAME}"
+          {
+            echo "tag=${TAG}"
+            echo "version=${VERSION}"
+            echo "target_abi=${TARGET_ABI}"
+            echo "zip_name=${ZIP_NAME}"
+            echo "asset_url=${ASSET_URL}"
+          } >> "${GITHUB_OUTPUT}"
+          echo "version=${VERSION} tag=${TAG} targetAbi=${TARGET_ABI}"
+
+      - name: Wait for release artifact and compute checksum
+        id: asset
+        env:
+          ASSET_URL: ${{ steps.meta.outputs.asset_url }}
+        run: |
+          set -euo pipefail
+          code=""
+          for i in $(seq 1 40); do
+            code=$(curl -sSL --max-time 60 -o /tmp/plugin.zip -w '%{http_code}' "${ASSET_URL}" || true)
+            if [ "${code}" = "200" ]; then
+              break
+            fi
+            echo "artifact not ready (attempt ${i}/40, HTTP ${code}), retry in 15s..."
+            sleep 15
+          done
+          if [ "${code}" != "200" ]; then
+            echo "::error::release artifact not available: ${ASSET_URL}"
+            exit 1
+          fi
+          CHECKSUM="$(md5sum /tmp/plugin.zip | awk '{print $1}')"
+          echo "checksum=${CHECKSUM}" >> "${GITHUB_OUTPUT}"
+          echo "checksum=${CHECKSUM} size=$(stat -c%s /tmp/plugin.zip)"
+
+      - name: Fetch current manifest from dist branch
+        id: dist
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/dist-branch
+          PARENT=""
+          if git ls-remote --exit-code --heads origin dist >/dev/null 2>&1; then
+            git fetch --depth=1 origin dist
+            PARENT="$(git rev-parse FETCH_HEAD)"
+            git show FETCH_HEAD:manifest.json > /tmp/dist-branch/manifest.json
+            echo "existing dist branch found (${PARENT})"
+          else
+            echo "no dist branch yet, it will be created"
+          fi
+          echo "parent=${PARENT}" >> "${GITHUB_OUTPUT}"
+
+      - name: Update manifest.json
+        env:
+          MANIFEST_PATH: /tmp/dist-branch/manifest.json
+          VERSION: ${{ steps.meta.outputs.version }}
+          CHECKSUM: ${{ steps.asset.outputs.checksum }}
+          SOURCE_URL: ${{ steps.meta.outputs.asset_url }}
+          TARGET_ABI: ${{ steps.meta.outputs.target_abi }}
+          IMAGE_URL: ${{ github.server_url }}/${{ github.repository }}/raw/branch/main/thumb.png
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import datetime
+          import json
+          import os
+
+          path = os.environ["MANIFEST_PATH"]
+          version = os.environ["VERSION"]
+
+          if os.path.exists(path):
+              data = json.load(open(path, encoding="utf-8"))
+          else:
+              # dist 分支不存在时用 meta.json 里的插件信息初始化
+              meta = json.load(open("meta.json", encoding="utf-8"))
+              data = [{
+                  "guid": meta["guid"],
+                  "name": meta["name"],
+                  "description": meta["description"],
+                  "overview": meta["overview"],
+                  "owner": meta["owner"],
+                  "category": meta["category"],
+                  "imageUrl": os.environ["IMAGE_URL"],
+                  "versions": [],
+              }]
+
+          changelog = "Release " + version
+          try:
+              event = json.load(open(os.environ["GITHUB_EVENT_PATH"], encoding="utf-8"))
+              body = (event.get("release") or {}).get("body") or ""
+              if body.strip():
+                  changelog = body.strip()
+          except Exception:
+              pass
+
+          entry = {
+              "checksum": os.environ["CHECKSUM"],
+              "changelog": changelog,
+              "targetAbi": os.environ["TARGET_ABI"],
+              "sourceUrl": os.environ["SOURCE_URL"],
+              "timestamp": datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+              "version": version,
+          }
+
+          plugin = data[0]
+          versions = [v for v in plugin.get("versions", []) if v.get("version") != version]
+          versions.insert(0, entry)
+          plugin["versions"] = versions
+
+          with open(path, "w", encoding="utf-8") as f:
+              json.dump(data, f, ensure_ascii=False, indent=2)
+              f.write("\n")
+
+          print(f"manifest updated: {version} ({len(versions)} version(s) kept)")
+          PY
+
+      - name: Publish dist branch
+        env:
+          PARENT: ${{ steps.dist.outputs.parent }}
+          VERSION: ${{ steps.meta.outputs.version }}
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          # 用 plumbing 构造一个只含 manifest.json 的提交，不切换工作区
+          BLOB="$(git hash-object -w /tmp/dist-branch/manifest.json)"
+          TREE="$(printf '100644 blob %s\tmanifest.json\n' "${BLOB}" | git mktree)"
+          if [ -n "${PARENT}" ]; then
+            COMMIT="$(git commit-tree "${TREE}" -p "${PARENT}" -m "chore(manifest): publish v${VERSION}")"
+          else
+            COMMIT="$(git commit-tree "${TREE}" -m "chore(manifest): initialize dist branch (v${VERSION})")"
+          fi
+          git push origin "${COMMIT}:refs/heads/dist"
+          echo "dist branch updated -> ${COMMIT}"
