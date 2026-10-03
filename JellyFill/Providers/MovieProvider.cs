@@ -211,6 +211,15 @@ public class MovieProvider : IRemoteMetadataProvider<Movie, MovieInfo>, IHasOrde
                     }
                 }
 
+                if (!string.IsNullOrEmpty(data.Director))
+                {
+                    result.AddPerson(new PersonInfo
+                    {
+                        Name = data.Director,
+                        Type = PersonKind.Director
+                    });
+                }
+
                 movie.SetProviderId("JellyFill-Provider", provider);
                 movie.SetProviderId("JellyFill-Id", id);
 

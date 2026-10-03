@@ -42,7 +42,7 @@ public class MovieImageProvider : IRemoteImageProvider, IHasOrder
     /// <inheritdoc />
     public IEnumerable<ImageType> GetSupportedImages(BaseItem item)
     {
-        return new[] { ImageType.Primary, ImageType.Backdrop };
+        return new[] { ImageType.Primary, ImageType.Backdrop, ImageType.Thumb };
     }
 
     /// <inheritdoc />
@@ -61,6 +61,7 @@ public class MovieImageProvider : IRemoteImageProvider, IHasOrder
         string serverUrl = Plugin.Instance?.Configuration.ServerUrl.TrimEnd('/') ?? "http://127.0.0.1:8089";
         string primaryUrl = $"{serverUrl}/v1/images/primary/{provider}/{id}";
         string backdropUrl = $"{serverUrl}/v1/images/backdrop/{provider}/{id}";
+        string thumbUrl = $"{serverUrl}/v1/images/thumb/{provider}/{id}";
 
         // 1. Primary Poster: Smart 2:3 vertical crop from JellyFill-Server
         images.Add(new RemoteImageInfo
@@ -78,10 +79,18 @@ public class MovieImageProvider : IRemoteImageProvider, IHasOrder
             Url = backdropUrl
         });
 
+        // 3. Thumb / Landscape: Wide sample screenshot from JellyFill-Server
+        images.Add(new RemoteImageInfo
+        {
+            Type = ImageType.Thumb,
+            ProviderName = Name,
+            Url = thumbUrl
+        });
+
         PluginLogStore.Add(
             PluginLogLevel.Info,
             "MovieImageProvider",
-            $"提供图片下载源 [{provider}:{id}]: 竖版海报(Primary)与全景背景(Backdrop)");
+            $"提供图片下载源 [{provider}:{id}]: 竖版海报(Primary)、全景背景(Backdrop)与横版缩略图(Thumb)");
 
         return Task.FromResult<IEnumerable<RemoteImageInfo>>(images);
     }
