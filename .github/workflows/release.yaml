@@ -1,0 +1,142 @@
+name: '📦 Build & Package Plugin'
+
+# 发布 Release 后自动构建插件并打包 zip 上传到该 Release：
+#   - 附件已存在（例如手工上传的包）-> 跳过构建，交给 manifest workflow 更新清单
+#   - 附件不存在 -> 在 runner 上 dotnet build，打包 JellyFill_{version}.zip 并上传
+# 之后 manifest.yaml 会轮询到附件，自动写入 dist 分支的 manifest.json。
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      version:
+        description: '要构建的版本号（如 1.1.0.0，缺省取 build.yaml 的 version）'
+        required: false
+        type: string
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-package
+  cancel-in-progress: false
+
+jobs:
+  package:
+    name: Build & upload plugin zip
+    runs-on: ubuntu-latest
+    # 预发布（Prerelease）不打包
+    if: ${{ github.event_name != 'release' || !github.event.release.prerelease }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Resolve version
+        id: meta
+        env:
+          RELEASE_TAG: ${{ github.event.release.tag_name }}
+          INPUT_VERSION: ${{ inputs.version }}
+        run: |
+          set -euo pipefail
+          if [ -n "${RELEASE_TAG}" ]; then
+            TAG="${RELEASE_TAG}"
+          elif [ -n "${INPUT_VERSION}" ]; then
+            TAG="v${INPUT_VERSION}"
+          else
+            TAG="v$(grep -E '^version:' build.yaml | head -n 1 | sed -E 's/.*"([^"]+)".*/\1/')"
+          fi
+          VERSION="${TAG#v}"
+          TAG="v${VERSION}"
+          {
+            echo "tag=${TAG}"
+            echo "version=${VERSION}"
+            echo "zip_name=JellyFill_${VERSION}.zip"
+          } >> "${GITHUB_OUTPUT}"
+          echo "version=${VERSION} tag=${TAG}"
+
+      - name: Check release asset
+        id: check
+        env:
+          TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ steps.meta.outputs.tag }}
+          ZIP_NAME: ${{ steps.meta.outputs.zip_name }}
+        run: |
+          set -euo pipefail
+          API="${GITHUB_API_URL}/repos/${GITHUB_REPOSITORY}"
+          RELEASE_JSON="$(curl -sS -H "Authorization: Bearer ${TOKEN}" "${API}/releases/tags/${TAG}")"
+          RELEASE_ID="$(printf '%s' "${RELEASE_JSON}" | python3 -c 'import json,sys; print(json.load(sys.stdin).get("id",""))' || true)"
+          if [ -z "${RELEASE_ID}" ]; then
+            echo "::error::release not found for tag ${TAG}"
+            exit 1
+          fi
+          SKIP="$(printf '%s' "${RELEASE_JSON}" | python3 -c '
+          import json, sys
+          data = json.load(sys.stdin)
+          name = sys.argv[1]
+          print("1" if any(a.get("name") == name for a in (data.get("assets") or [])) else "0")
+          ' "${ZIP_NAME}")"
+          echo "release_id=${RELEASE_ID}" >> "${GITHUB_OUTPUT}"
+          echo "skip=${SKIP}" >> "${GITHUB_OUTPUT}"
+          if [ "${SKIP}" = "1" ]; then
+            echo "${ZIP_NAME} already attached, build will be skipped"
+          else
+            echo "${ZIP_NAME} not attached yet, will build and upload"
+          fi
+
+      - name: Setup .NET SDK
+        if: steps.check.outputs.skip != '1'
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '9.0.x'
+
+      - name: Build plugin
+        if: steps.check.outputs.skip != '1'
+        run: dotnet build JellyFill/JellyFill.csproj -c Release
+
+      - name: Package zip
+        if: steps.check.outputs.skip != '1'
+        env:
+          VERSION: ${{ steps.meta.outputs.version }}
+        run: |
+          set -euo pipefail
+          PKG_DIR="JellyFill_${VERSION}"
+          mkdir -p "dist/${PKG_DIR}"
+          cp JellyFill/bin/Release/net9.0/JellyFill.dll "dist/${PKG_DIR}/"
+          cp meta.json thumb.png "dist/${PKG_DIR}/"
+          (cd dist && zip -qr "JellyFill_${VERSION}.zip" "${PKG_DIR}")
+          unzip -l "dist/JellyFill_${VERSION}.zip"
+          md5sum "dist/JellyFill_${VERSION}.zip"
+
+      - name: Upload release asset
+        if: steps.check.outputs.skip != '1'
+        env:
+          TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ steps.meta.outputs.tag }}
+          ZIP_NAME: ${{ steps.meta.outputs.zip_name }}
+          RELEASE_ID: ${{ steps.check.outputs.release_id }}
+        run: |
+          set -euo pipefail
+          API="${GITHUB_API_URL}/repos/${GITHUB_REPOSITORY}"
+          CODE="$(curl -sS -o /tmp/upload.json -w '%{http_code}' \
+            -X POST \
+            -H "Authorization: Bearer ${TOKEN}" \
+            -F "attachment=@dist/${ZIP_NAME}" \
+            "${API}/releases/${RELEASE_ID}/assets?name=${ZIP_NAME}")"
+          if [ "${CODE}" = "200" ] || [ "${CODE}" = "201" ]; then
+            echo "uploaded ${ZIP_NAME} to release ${TAG}"
+            exit 0
+          fi
+          # 极端情况下附件可能在构建期间被手工传了，复查确认后按成功处理
+          EXISTS="$(curl -sS -H "Authorization: Bearer ${TOKEN}" "${API}/releases/tags/${TAG}" | python3 -c '
+          import json, sys
+          data = json.load(sys.stdin)
+          name = sys.argv[1]
+          print("1" if any(a.get("name") == name for a in (data.get("assets") or [])) else "0")
+          ' "${ZIP_NAME}")"
+          if [ "${EXISTS}" = "1" ]; then
+            echo "asset already present (uploaded elsewhere), keep the existing file"
+            exit 0
+          fi
+          echo "::error::asset upload failed (HTTP ${CODE})"
+          cat /tmp/upload.json 2>/dev/null || true
+          exit 1
