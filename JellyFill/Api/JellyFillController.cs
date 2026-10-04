@@ -47,9 +47,25 @@ public class JellyFillController : ControllerBase
     /// <returns>A list of log entries ordered newest first.</returns>
     [HttpGet("Logs")]
     [ProducesResponseType(StatusCodes.Status200OK)]
-    public ActionResult<IReadOnlyList<PluginLogEntry>> GetLogs()
+    public ActionResult GetLogs()
     {
-        return Ok(PluginLogStore.GetLogs());
+        // Jellyfin API 默认按 PascalCase 序列化，而配置页 JS 按 camelCase 读取，
+        // 这里显式投影成 camelCase，避免日志页时间/正文显示为空。
+        var entries = PluginLogStore.GetLogs();
+        var logs = new List<object>(entries.Count);
+        foreach (var e in entries)
+        {
+            logs.Add(new
+            {
+                timestamp = e.Timestamp,
+                level = e.Level.ToString(),
+                source = e.Source,
+                message = e.Message,
+                details = e.Details
+            });
+        }
+
+        return Ok(logs);
     }
 
     /// <summary>
