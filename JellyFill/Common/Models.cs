@@ -78,6 +78,18 @@ public class MovieDetail
     [JsonPropertyName("title")]
     public string Title { get; set; } = string.Empty;
 
+    /// <summary>
+    /// Gets or sets the translated (zh-CN) title.
+    /// </summary>
+    [JsonPropertyName("title_translated")]
+    public string? TitleTranslated { get; set; }
+
+    /// <summary>
+    /// Gets or sets the structured tags written to the NFO tag elements.
+    /// </summary>
+    [JsonPropertyName("tags")]
+    public List<string> Tags { get; set; } = new();
+
     [JsonPropertyName("summary")]
     public string? Summary { get; set; }
 

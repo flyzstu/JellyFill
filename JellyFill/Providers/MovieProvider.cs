@@ -167,13 +167,23 @@ public class MovieProvider : IRemoteMetadataProvider<Movie, MovieInfo>, IHasOrde
             if (resp?.Data != null)
             {
                 var data = resp.Data;
+                var translatedTitle = string.IsNullOrWhiteSpace(data.TitleTranslated) ? data.Title : data.TitleTranslated;
+                var displayTitle = string.IsNullOrEmpty(data.Number) ? translatedTitle : $"{data.Number} {translatedTitle}";
+
                 var movie = new Movie
                 {
-                    Name = data.Title,
-                    OriginalTitle = data.Number,
+                    // 主标题 = 番号 + 标题翻译；原始标题(副标题) = 原文
+                    Name = displayTitle,
+                    OriginalTitle = data.Title,
                     Overview = data.Summary,
                     CommunityRating = (float?)data.Score
                 };
+
+                // 结构化信息以 NFO tag 形式写入，不放进正文
+                if (data.Tags != null && data.Tags.Count > 0)
+                {
+                    movie.Tags = data.Tags.ToArray();
+                }
 
                 if (DateTime.TryParse(data.ReleaseDate, CultureInfo.InvariantCulture, DateTimeStyles.None, out var dt))
                 {
