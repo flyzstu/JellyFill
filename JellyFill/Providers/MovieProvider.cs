@@ -95,7 +95,8 @@ public class MovieProvider : IRemoteMetadataProvider<Movie, MovieInfo>, IHasOrde
                     {
                         Name = item.Title,
                         SearchProviderName = Name,
-                        ImageUrl = item.CoverUrl ?? item.ThumbUrl
+                        // ThumbUrl 优先（JAV321 为竖版 ps 封面），避免识别弹窗 2:3 框中心裁切横版封套
+                        ImageUrl = item.ThumbUrl ?? item.CoverUrl
                     };
 
                     result.SetProviderId("JellyFill-Provider", item.Provider);
