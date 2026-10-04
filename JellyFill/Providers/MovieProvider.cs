@@ -88,27 +88,57 @@ public class MovieProvider : IRemoteMetadataProvider<Movie, MovieInfo>, IHasOrde
             var resp = await client.GetFromJsonAsync<ApiResponse<List<MovieSearchResult>>>(url, cancellationToken).ConfigureAwait(false);
             if (resp?.Data != null && resp.Data.Count > 0)
             {
-                PluginLogStore.Add(PluginLogLevel.Success, "MovieProvider", $"[搜索] 番号 [{number}] 服务端检索成功，匹配到 {resp.Data.Count} 条记录");
+                PluginLogStore.Add(PluginLogLevel.Info, "MovieProvider", $"[搜索] 番号 [{number}] 服务端检索成功，匹配到 {resp.Data.Count} 条记录");
                 foreach (var item in resp.Data)
                 {
-                    var result = new RemoteSearchResult
+                    if (string.IsNullOrEmpty(item.Id))
                     {
-                        Name = item.Title,
+                        continue;
+                    }
+
+                    // 候选一（默认）：横版封套右侧裁切
+                    var cropped = new RemoteSearchResult
+                    {
+                        Name = $"{item.Title}（封面裁切）",
                         SearchProviderName = Name,
                         // ThumbUrl 优先（JAV321 为竖版 ps 封面），避免识别弹窗 2:3 框中心裁切横版封套
                         ImageUrl = item.ThumbUrl ?? item.CoverUrl
                     };
 
-                    result.SetProviderId("JellyFill-Provider", item.Provider);
-                    result.SetProviderId("JellyFill-Id", item.Id);
+                    cropped.SetProviderId("JellyFill-Provider", item.Provider);
+                    cropped.SetProviderId("JellyFill-Id", item.Id);
 
-                    if (DateTime.TryParse(item.ReleaseDate, CultureInfo.InvariantCulture, DateTimeStyles.None, out var dt))
+                    DateTime? premiere = DateTime.TryParse(item.ReleaseDate, CultureInfo.InvariantCulture, DateTimeStyles.None, out var parsed) ? parsed : null;
+                    if (premiere.HasValue)
                     {
-                        result.PremiereDate = dt;
-                        result.ProductionYear = dt.Year;
+                        cropped.PremiereDate = premiere;
+                        cropped.ProductionYear = premiere.Value.Year;
                     }
 
-                    results.Add(result);
+                    results.Add(cropped);
+
+                    // 候选二：完整竖版封面（服务端 404 = 无高清竖版，不提供该候选）
+                    var verticalUrl = $"{serverUrl}/v1/images/primary/{item.Provider}/{Uri.EscapeDataString(item.Id)}?mode=vertical";
+                    if (await ProbeUrlAsync(verticalUrl, cancellationToken).ConfigureAwait(false))
+                    {
+                        var vertical = new RemoteSearchResult
+                        {
+                            Name = $"{item.Title}（完整竖版）",
+                            SearchProviderName = Name,
+                            ImageUrl = cropped.ImageUrl
+                        };
+                        vertical.SetProviderId("JellyFill-Provider", item.Provider);
+                        vertical.SetProviderId("JellyFill-Id", item.Id);
+                        vertical.SetProviderId("JellyFill-PosterMode", "vertical");
+                        if (premiere.HasValue)
+                        {
+                            vertical.PremiereDate = premiere;
+                            vertical.ProductionYear = premiere.Value.Year;
+                        }
+                        results.Add(vertical);
+
+                        PluginLogStore.Add(PluginLogLevel.Info, "MovieProvider", $"[搜索] [{item.Number}] 提供双封面候选：封面裁切（默认）+ 完整竖版");
+                    }
                 }
             }
             else
@@ -132,6 +162,7 @@ public class MovieProvider : IRemoteMetadataProvider<Movie, MovieInfo>, IHasOrde
 
         string? provider = info.GetProviderId("JellyFill-Provider") ?? Plugin.Instance?.Configuration.DefaultProvider ?? "JAV321";
         string? id = info.GetProviderId("JellyFill-Id");
+        string? posterMode = info.GetProviderId("JellyFill-PosterMode");
 
         // If ID is missing, try identifying from search
         if (string.IsNullOrEmpty(id))
@@ -145,6 +176,7 @@ public class MovieProvider : IRemoteMetadataProvider<Movie, MovieInfo>, IHasOrde
 
             provider = first.GetProviderId("JellyFill-Provider") ?? provider;
             id = first.GetProviderId("JellyFill-Id");
+            posterMode = first.GetProviderId("JellyFill-PosterMode");
             if (string.IsNullOrEmpty(id))
             {
                 return result;
@@ -233,6 +265,11 @@ public class MovieProvider : IRemoteMetadataProvider<Movie, MovieInfo>, IHasOrde
 
                 movie.SetProviderId("JellyFill-Provider", provider);
                 movie.SetProviderId("JellyFill-Id", id);
+                // 记住用户在识别弹窗选择的封面模式（vertical = 完整竖版，缺省 = 封面裁切）
+                if (!string.IsNullOrEmpty(posterMode))
+                {
+                    movie.SetProviderId("JellyFill-PosterMode", posterMode);
+                }
 
                 result.Item = movie;
                 result.HasMetadata = true;
@@ -250,6 +287,30 @@ public class MovieProvider : IRemoteMetadataProvider<Movie, MovieInfo>, IHasOrde
         }
 
         return result;
+    }
+
+    /// <summary>
+    /// 探测 URL 是否可用（服务端对「无高清竖版候选」返回 404）。
+    /// </summary>
+    private async Task<bool> ProbeUrlAsync(string url, CancellationToken cancellationToken)
+    {
+        try
+        {
+            var client = _httpClientFactory.CreateClient();
+            using var request = new HttpRequestMessage(HttpMethod.Head, new Uri(url));
+            if (!string.IsNullOrEmpty(Plugin.Instance?.Configuration.ApiToken))
+            {
+                request.Headers.Add("Authorization", $"Bearer {Plugin.Instance.Configuration.ApiToken}");
+            }
+
+            var resp = await client.SendAsync(request, cancellationToken).ConfigureAwait(false);
+            return resp.IsSuccessStatusCode;
+        }
+        catch (Exception ex)
+        {
+            PluginLogStore.Add(PluginLogLevel.Warning, "MovieProvider", $"[搜索] 竖版候选探测失败: {ex.Message}");
+            return false;
+        }
     }
 
     /// <inheritdoc />

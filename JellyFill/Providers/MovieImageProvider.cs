@@ -63,12 +63,24 @@ public class MovieImageProvider : IRemoteImageProvider, IHasOrder
         string backdropUrl = $"{serverUrl}/v1/images/backdrop/{provider}/{id}";
         string thumbUrl = $"{serverUrl}/v1/images/thumb/{provider}/{id}";
 
-        // 1. Primary Poster: Smart 2:3 vertical crop from JellyFill-Server
+        // 1. Primary Poster：识别时选了「完整竖版」则竖版优先，右侧封面裁切永远兜底
+        bool verticalPreferred = string.Equals(item.GetProviderId("JellyFill-PosterMode"), "vertical", StringComparison.OrdinalIgnoreCase);
+        if (verticalPreferred)
+        {
+            images.Add(new RemoteImageInfo
+            {
+                Type = ImageType.Primary,
+                ProviderName = Name,
+                Url = $"{primaryUrl}?mode=vertical"
+            });
+        }
+
         images.Add(new RemoteImageInfo
         {
             Type = ImageType.Primary,
             ProviderName = Name,
-            Url = primaryUrl
+            // 横版封套右侧 380/800 裁切（服务端默认行为，显式声明便于区分候选）
+            Url = $"{primaryUrl}?mode=crop"
         });
 
         // 2. Backdrop / Fanart: Wide full cover
