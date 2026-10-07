@@ -44,6 +44,10 @@ public class Plugin : BasePlugin<PluginConfiguration>, IHasWebPages
             new PluginPageInfo
             {
                 Name = Name,
+                DisplayName = "JellyFill配置",
+                EnableInMainMenu = true,
+                MenuSection = "plugins",
+                MenuIcon = "auto_stories",
                 EmbeddedResourcePath = string.Format(CultureInfo.InvariantCulture, "{0}.Configuration.configPage.html", GetType().Namespace)
             }
         ];

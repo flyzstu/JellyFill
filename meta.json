@@ -6,9 +6,10 @@
   "overview": "JellyFill 极速影片刮削与 2:3 纵向海报生成插件，支持实时日志与控制台在线调试。",
   "owner": "flyzstu",
   "targetAbi": "10.11.0.0",
-  "timestamp": "2026-10-04T13:12:42.887358Z",
-  "version": "1.1.0.5",
+  "timestamp": "2026-10-07T00:00:00.0000000Z",
+  "version": "1.1.0.6",
   "status": "Active",
   "autoUpdate": false,
-  "assemblies": []
+  "assemblies": [],
+  "changelog": "将 JellyFill 设置页加入左侧主菜单插件分组（'JellyFill配置'）。"
 }
