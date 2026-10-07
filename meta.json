@@ -7,9 +7,9 @@
   "owner": "flyzstu",
   "targetAbi": "10.11.0.0",
   "timestamp": "2026-10-07T00:00:00.0000000Z",
-  "version": "1.1.0.6",
+  "version": "1.1.0.7",
   "status": "Active",
   "autoUpdate": false,
   "assemblies": [],
-  "changelog": "将 JellyFill 设置页加入左侧主菜单插件分组（'JellyFill配置'）。"
+  "changelog": "将 JellyFill 设置页在左侧主菜单插件分组显示名称由 'JellyFill配置' 改为 'JellyFill设置'。"
 }

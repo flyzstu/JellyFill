@@ -44,7 +44,7 @@ public class Plugin : BasePlugin<PluginConfiguration>, IHasWebPages
             new PluginPageInfo
             {
                 Name = Name,
-                DisplayName = "JellyFill配置",
+                DisplayName = "JellyFill设置",
                 EnableInMainMenu = true,
                 MenuSection = "plugins",
                 MenuIcon = "auto_stories",

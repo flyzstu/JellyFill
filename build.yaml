@@ -1,7 +1,7 @@
 ---
 name: "JellyFill"
 guid: "a81d3e52-7b19-482c-b5f7-3e198642a8b3"
-version: "1.1.0.6"
+version: "1.1.0.7"
 targetAbi: "10.11.0.0"
 framework: "net9.0"
 overview: "High-performance metadata and image scraper powered by JellyFill-Server."
@@ -13,4 +13,4 @@ owner: "flyzstu"
 artifacts:
 - "JellyFill.dll"
 changelog: >
-  将 JellyFill 设置页加入左侧主菜单插件分组（'JellyFill配置'）。
+  将 JellyFill 设置页在左侧主菜单插件分组显示名称由 'JellyFill配置' 改为 'JellyFill设置'。
